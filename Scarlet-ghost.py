@@ -18,7 +18,7 @@ import json
 import argparse
 import ipaddress
 import hashlib
-import base64  # <- Adicione esta linha aqui
+import base64
 import tarfile
 import zipfile
 import platform
@@ -49,10 +49,19 @@ try:
     from scipy import stats
     from sklearn.ensemble import IsolationForest
     from sklearn.cluster import DBSCAN
-    import networkx as nx
     PLOTTING_AVAILABLE = True
 except ImportError:
     PLOTTING_AVAILABLE = False
+    np = None
+    pd = None
+
+# Verificar se networkx está disponível
+try:
+    import networkx as nx
+    NETWORKX_AVAILABLE = True
+except ImportError:
+    NETWORKX_AVAILABLE = False
+    nx = None
 
 try:
     import cryptography
@@ -94,6 +103,12 @@ try:
     WEB_AVAILABLE = True
 except ImportError:
     WEB_AVAILABLE = False
+
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
 
 # Configuração avançada de logging
 class RedTeamFormatter(logging.Formatter):
@@ -657,11 +672,14 @@ class PostExploitation:
             info['system']['processor'] = platform.processor()
             
             # Informações de rede
-            import netifaces
-            for iface in netifaces.interfaces():
-                addrs = netifaces.ifaddresses(iface)
-                if netifaces.AF_INET in addrs:
-                    info['network'][iface] = addrs[netifaces.AF_INET]
+            try:
+                import netifaces
+                for iface in netifaces.interfaces():
+                    addrs = netifaces.ifaddresses(iface)
+                    if netifaces.AF_INET in addrs:
+                        info['network'][iface] = addrs[netifaces.AF_INET]
+            except ImportError:
+                pass
             
             # Usuários (simplificado)
             if platform.system() == 'Windows':
@@ -677,15 +695,18 @@ class PostExploitation:
                     pass
             
             # Processos
-            import psutil
-            for proc in psutil.process_iter(['pid', 'name', 'username']):
-                try:
-                    info['processes'].append(proc.info)
-                except:
-                    continue
-            
-            # Limitar número de processos
-            info['processes'] = info['processes'][:50]
+            try:
+                import psutil
+                for proc in psutil.process_iter(['pid', 'name', 'username']):
+                    try:
+                        info['processes'].append(proc.info)
+                    except:
+                        continue
+                
+                # Limitar número de processos
+                info['processes'] = info['processes'][:50]
+            except ImportError:
+                pass
             
         except Exception as e:
             logger.error(f"Erro ao coletar informações: {e}")
@@ -783,8 +804,11 @@ class AdvancedLogAnalyzer:
         # Machine Learning para detecção de anomalias
         self.anomaly_detector = self.setup_anomaly_detector()
         
-        # Grafos para análise de relacionamentos
-        self.attack_graph = nx.DiGraph()
+        # Grafos para análise de relacionamentos (CORREÇÃO APLICADA AQUI)
+        if NETWORKX_AVAILABLE:
+            self.attack_graph = nx.DiGraph()
+        else:
+            self.attack_graph = None
         
     def load_config(self, config_path: str = None) -> Dict:
         """Carrega configuração avançada"""
@@ -817,13 +841,16 @@ class AdvancedLogAnalyzer:
         
         if config_path and os.path.exists(config_path):
             try:
-                with open(config_path, 'r') as f:
-                    user_config = yaml.safe_load(f)
-                    # Mesclar configurações
-                    import copy
-                    merged = copy.deepcopy(default_config)
-                    self.merge_dicts(merged, user_config)
-                    return merged
+                if YAML_AVAILABLE:
+                    with open(config_path, 'r') as f:
+                        user_config = yaml.safe_load(f)
+                        # Mesclar configurações
+                        import copy
+                        merged = copy.deepcopy(default_config)
+                        self.merge_dicts(merged, user_config)
+                        return merged
+                else:
+                    logger.warning("PyYAML não disponível, usando configuração padrão")
             except Exception as e:
                 logger.error(f"Erro ao carregar config: {e}")
         
@@ -897,14 +924,14 @@ class AdvancedLogAnalyzer:
             'behavioral_patterns': []
         }
         
-        if self.anomaly_detector is None or log_data.empty:
+        if self.anomaly_detector is None or log_data is None or log_data.empty:
             return results
         
         try:
             # Preparar features
             features = self.extract_features(log_data)
             
-            if features.shape[0] > 10:  # Precisa de dados suficientes
+            if features is not None and features.shape[0] > 10:  # Precisa de dados suficientes
                 # Detecção de anomalias
                 anomaly_scores = self.anomaly_detector.fit_predict(features)
                 anomalies = np.where(anomaly_scores == -1)[0]
@@ -940,6 +967,9 @@ class AdvancedLogAnalyzer:
     
     def extract_features(self, log_data: pd.DataFrame) -> pd.DataFrame:
         """Extrai features para ML dos logs"""
+        if log_data is None or log_data.empty:
+            return pd.DataFrame()
+        
         features = []
         
         # Features básicas
@@ -965,6 +995,9 @@ class AdvancedLogAnalyzer:
         behaviors = []
         
         try:
+            if log_data is None or log_data.empty:
+                return behaviors
+                
             # Detectar comportamentos suspeitos
             if 'source_ip' in log_data.columns and 'timestamp' in log_data.columns:
                 # Agrupar por IP e analisar padrões temporais
@@ -1003,7 +1036,7 @@ class AdvancedLogAnalyzer:
     
     def calculate_burst_score(self, time_diffs: pd.Series) -> float:
         """Calcula score de atividade em bursts"""
-        if len(time_diffs) < 2:
+        if time_diffs is None or len(time_diffs) < 2:
             return 0.0
         
         # Identificar clusters temporais
@@ -1027,7 +1060,7 @@ class AdvancedLogAnalyzer:
     
     def calculate_regularity_score(self, times: pd.Series) -> float:
         """Calcula score de regularidade/automação"""
-        if len(times) < 3:
+        if times is None or len(times) < 3:
             return 0.0
         
         # Calcular diferenças entre requisições
@@ -1096,6 +1129,13 @@ class AdvancedLogAnalyzer:
     
     def build_attack_graph(self, logs: List[Dict]):
         """Constrói grafo de ataque"""
+        if self.attack_graph is None:
+            return {
+                'central_nodes': [],
+                'clusters': [],
+                'paths': []
+            }
+        
         self.attack_graph.clear()
         
         # Adicionar nós (IPs, usuários, sistemas)
@@ -1203,7 +1243,7 @@ class AdvancedLogAnalyzer:
         return {
             'scenario': selected,
             'simulated_logs': simulated_logs[:50],  # Limitar
-            'analysis': self.analyze_with_ai(pd.DataFrame(simulated_logs))
+            'analysis': self.analyze_with_ai(pd.DataFrame(simulated_logs) if pd is not None else None)
         }
     
     def generate_simulated_logs(self, ttps: List[str]) -> List[Dict]:
@@ -1521,7 +1561,6 @@ class RedTeamCLI:
                 logs = [line.strip() for line in f.readlines() if line.strip()]
             
             # Converter para DataFrame para análise
-            import pandas as pd
             log_data = []
             
             for i, line in enumerate(logs[:10000]):  # Limitar para performance
@@ -1534,36 +1573,68 @@ class RedTeamCLI:
                 }
                 log_data.append(entry)
             
-            df = pd.DataFrame(log_data)
+            # Criar DataFrame se pandas estiver disponível
+            if pd is not None:
+                df = pd.DataFrame(log_data)
+            else:
+                df = None
+                print(f"{self.colors['yellow']}Pandas não disponível, análise básica apenas{self.colors['end']}")
             
             # Executar análise
-            results = self.analyzer.analyze_with_ai(df)
-            
-            # Exibir resultados
-            print(f"\n{self.colors['green']}✓ Análise concluída!{self.colors['end']}")
-            print(f"📊 Logs processados: {len(df)}")
-            print(f"🚨 Anomalias detectadas: {len(results['anomalies'])}")
-            print(f"🧩 Padrões comportamentais: {len(results['behavioral_patterns'])}")
-            
-            if results['anomalies']:
-                print(f"\n{self.colors['red']}TOP ANOMALIAS:{self.colors['end']}")
-                for anomaly in results['anomalies'][:5]:
-                    print(f"  • Score: {anomaly['score']:.3f} - Linha: {anomaly['index']}")
-                    print(f"    {anomaly['data'].get('content', '')[:80]}...")
-            
-            # Salvar resultados
-            output_file = f"forensic_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-            with open(output_file, 'w') as f:
-                json.dump({
-                    'metadata': {
-                        'file': log_file,
-                        'analysis_date': datetime.now().isoformat(),
-                        'total_logs': len(df)
-                    },
-                    'results': results
-                }, f, indent=2, default=str)
-            
-            print(f"\n{self.colors['cyan']}📁 Resultados salvos em: {output_file}{self.colors['end']}")
+            if df is not None:
+                results = self.analyzer.analyze_with_ai(df)
+                
+                # Exibir resultados
+                print(f"\n{self.colors['green']}✓ Análise concluída!{self.colors['end']}")
+                print(f"📊 Logs processados: {len(df)}")
+                print(f"🚨 Anomalias detectadas: {len(results['anomalies'])}")
+                print(f"🧩 Padrões comportamentais: {len(results['behavioral_patterns'])}")
+                
+                if results['anomalies']:
+                    print(f"\n{self.colors['red']}TOP ANOMALIAS:{self.colors['end']}")
+                    for anomaly in results['anomalies'][:5]:
+                        print(f"  • Score: {anomaly['score']:.3f} - Linha: {anomaly['index']}")
+                        print(f"    {anomaly['data'].get('content', '')[:80]}...")
+                
+                # Salvar resultados
+                output_file = f"forensic_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                with open(output_file, 'w') as f:
+                    json.dump({
+                        'metadata': {
+                            'file': log_file,
+                            'analysis_date': datetime.now().isoformat(),
+                            'total_logs': len(df) if df is not None else len(log_data)
+                        },
+                        'results': results
+                    }, f, indent=2, default=str)
+                
+                print(f"\n{self.colors['cyan']}📁 Resultados salvos em: {output_file}{self.colors['end']}")
+            else:
+                # Análise básica sem pandas
+                print(f"\n{self.colors['green']}✓ Análise básica concluída!{self.colors['end']}")
+                print(f"📊 Logs processados: {len(log_data)}")
+                
+                # Detectar TTPs básicos
+                detected_ttps = []
+                for entry in log_data[:100]:  # Limitar
+                    ttps = RedTeamTechniques.detect_ttp(entry['content'])
+                    detected_ttps.extend(ttps)
+                
+                print(f"🎯 TTPs detectados: {len(detected_ttps)}")
+                
+                # Salvar resultados básicos
+                output_file = f"forensic_analysis_basic_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                with open(output_file, 'w') as f:
+                    json.dump({
+                        'metadata': {
+                            'file': log_file,
+                            'analysis_date': datetime.now().isoformat(),
+                            'total_logs': len(log_data)
+                        },
+                        'detected_ttps': detected_ttps[:50]
+                    }, f, indent=2)
+                
+                print(f"\n{self.colors['cyan']}📁 Resultados básicos salvos em: {output_file}{self.colors['end']}")
             
         except Exception as e:
             print(f"{self.colors['red']}Erro na análise: {e}{self.colors['end']}")
@@ -1813,7 +1884,6 @@ class RedTeamCLI:
                 return
             
             try:
-                import pandas as pd
                 data = pd.read_csv(csv_file)
                 print(f"{self.colors['green']}✓ Dados carregados: {len(data)} linhas{self.colors['end']}")
             except Exception as e:
@@ -1875,8 +1945,9 @@ class RedTeamCLI:
     
     def generate_training_data(self):
         """Gera dados de treinamento sintéticos"""
-        import pandas as pd
-        import numpy as np
+        if pd is None or np is None:
+            print(f"{self.colors['red']}Pandas ou numpy não disponíveis!{self.colors['end']}")
+            return None
         
         # Gerar dados normais
         np.random.seed(42)
@@ -2763,11 +2834,11 @@ Exemplos de uso:
     
     elif args.analyze:
         analyzer = AdvancedLogAnalyzer(args.config)
-        # Implementar análise de arquivo
+        print(f"Análise de {args.analyze} - funcionalidade a ser implementada")
         
     elif args.ttp_detect:
         analyzer = AdvancedLogAnalyzer(args.config)
-        # Implementar detecção de TTPs
+        print(f"Detecção de TTPs em {args.ttp_detect} - funcionalidade a ser implementada")
         
     elif args.simulate:
         analyzer = AdvancedLogAnalyzer(args.config)
