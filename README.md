@@ -536,17 +536,13 @@ of this software and associated documentation files...
   <img src="https://img.shields.io/badge/Open%20Source-❤️-red?style=flat-square">
   <img src="https://img.shields.io/badge/For-Red%20Team-black?style=flat-square">
 </p>
-
 🤝 Créditos e Agradecimentos
 Este framework não seria possível sem o trabalho incrível de desenvolvedores e comunidades que mantêm as ferramentas de segurança utilizadas pelo SCARLET GHOST. Um agradecimento especial a:
 
-ProjectDiscovery: Pelas ferramentas de recon e scanner de vulnerabilidades (Nuclei, Subfinder, etc).
-
-Tomnomnom: Pelas ferramentas lendárias de manipulação de dados e web discovery.
-
-Daniel Miessler (SecLists): Pelo esforço hercúleo de organizar as wordlists mais utilizadas do mundo.
-
-Comunidade Open Source: A todos os criadores das ferramentas de infraestrutura (Nmap, Jq, Docker) que formam a base deste ecossistema.
+* **[ProjectDiscovery](https://github.com/projectdiscovery)**: Pelas ferramentas de recon e scanner de vulnerabilidades.
+* **[Tomnomnom](https://github.com/tomnomnom)**: Pelas ferramentas lendárias de manipulação de dados.
+* **[Daniel Miessler (SecLists)](https://github.com/danielmiessler/SecLists)**: Pela organização das wordlists.
+* **Comunidade Open Source:** A todos os criadores das ferramentas de infraestrutura (Nmap, Jq, Docker) que formam a base deste ecossistema.
 
 O SCARLET GHOST atua como um orquestrador, unindo estas potentes soluções numa pipeline de trabalho resiliente e automatizada.
 
