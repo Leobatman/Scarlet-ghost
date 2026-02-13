@@ -24,7 +24,7 @@
 ## 🎬 **VISÃO GERAL DO PROJETO**
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/1f0b02bd-9c04-4d70-987d-b4fbe97eb2b3" width="800px">
+  <img src="https://github.com/user-attachments/assets/4452f266-2544-491c-b9b7-30c121d15b3d" width="800px">
 </p>
 
 ---
